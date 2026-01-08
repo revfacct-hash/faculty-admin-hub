@@ -16,13 +16,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { toast } from "sonner";
-import type { DocenteFormData } from "@/types/admin";
-
-const mockCarreras = [
-  { id: "1", nombre: "Ingeniería de Sistemas" },
-  { id: "2", nombre: "Ingeniería Electrónica" },
-  { id: "3", nombre: "Ingeniería Mecatrónica" },
-];
+import { supabase } from "@/lib/supabase";
+import type { DocenteFormData, Carrera } from "@/types/admin";
 
 const initialFormData: DocenteFormData = {
   carrera_id: "",
@@ -42,28 +37,65 @@ export default function DocenteFormPage() {
   const isEditing = !!id;
   
   const [formData, setFormData] = useState<DocenteFormData>(initialFormData);
+  const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (isEditing) {
+    fetchCarreras();
+  }, []);
+
+  useEffect(() => {
+    if (isEditing && id) {
       setIsLoading(true);
-      setTimeout(() => {
-        setFormData({
-          carrera_id: "1",
-          nombre: "Ing. Roberto Carlos Saavedra Nogales",
-          especialidad: "Seguridad Informática y Auditoría de Sistemas",
-          titulo: "Ingeniero de Sistemas - Magister en Seguridad Informática",
-          experiencia: "25 años en desarrollo de software y seguridad informática",
-          imagen_avatar: undefined,
-          cv_imagen: undefined,
-          orden: 1,
-          activo: true,
-        });
-        setIsLoading(false);
-      }, 500);
+      const fetchDocente = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('docentes')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (error) throw error;
+          
+          if (data) {
+            setFormData({
+              carrera_id: data.carrera_id || "",
+              nombre: data.nombre,
+              especialidad: data.especialidad || "",
+              titulo: data.titulo || "",
+              experiencia: data.experiencia || "",
+              imagen_avatar: data.imagen_avatar || undefined,
+              cv_imagen: data.cv_imagen || undefined,
+              orden: data.orden || 0,
+              activo: data.activo,
+            });
+          }
+        } catch (error: any) {
+          console.error('Error fetching docente:', error);
+          toast.error('Error al cargar el docente');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchDocente();
     }
   }, [isEditing, id]);
+
+  const fetchCarreras = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('carreras')
+        .select('id, nombre')
+        .eq('activa', true)
+        .order('nombre');
+
+      if (error) throw error;
+      setCarreras(data || []);
+    } catch (error: any) {
+      console.error('Error fetching carreras:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,13 +122,46 @@ export default function DocenteFormPage() {
     }
 
     setIsSaving(true);
-    console.log("Saving:", formData);
     
-    setTimeout(() => {
-      setIsSaving(false);
-      toast.success(isEditing ? "Docente actualizado correctamente" : "Docente creado correctamente");
+    try {
+      const dataToSave = {
+        carrera_id: formData.carrera_id,
+        nombre: formData.nombre,
+        especialidad: formData.especialidad,
+        titulo: formData.titulo,
+        experiencia: formData.experiencia,
+        imagen_avatar: formData.imagen_avatar || null,
+        cv_imagen: formData.cv_imagen || null,
+        orden: formData.orden,
+        activo: formData.activo,
+      };
+
+      if (isEditing && id) {
+        const { error } = await supabase
+          .from('docentes')
+          .update(dataToSave)
+          .eq('id', id);
+
+        if (error) throw error;
+        toast.success("Docente actualizado correctamente");
+      } else {
+        const { error } = await supabase
+          .from('docentes')
+          .insert(dataToSave)
+          .select()
+          .single();
+
+        if (error) throw error;
+        toast.success("Docente creado correctamente");
+      }
+      
       navigate("/admin/docentes");
-    }, 1000);
+    } catch (error: any) {
+      console.error('Error saving docente:', error);
+      toast.error(error.message || 'Error al guardar el docente');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleChange = (field: keyof DocenteFormData, value: any) => {
@@ -144,7 +209,7 @@ export default function DocenteFormPage() {
                     <SelectValue placeholder="Selecciona una carrera" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockCarreras.map((carrera) => (
+                    {carreras.map((carrera) => (
                       <SelectItem key={carrera.id} value={carrera.id}>
                         {carrera.nombre}
                       </SelectItem>

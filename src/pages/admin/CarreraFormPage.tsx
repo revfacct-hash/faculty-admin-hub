@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { generateSlug, extractYouTubeId } from "@/lib/admin-utils";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import type { CarreraFormData } from "@/types/admin";
 
 const initialFormData: CarreraFormData = {
@@ -45,23 +46,39 @@ export default function CarreraFormPage() {
 
   // Load carrera data when editing
   useEffect(() => {
-    if (isEditing) {
+    if (isEditing && id) {
       setIsLoading(true);
-      // TODO: Fetch from Supabase
-      setTimeout(() => {
-        setFormData({
-          nombre: "Ingeniería de Sistemas",
-          slug: "ingenieria-sistemas",
-          descripcion: "Formamos profesionales capaces de diseñar y desarrollar sistemas informáticos innovadores...",
-          duracion: "5 años",
-          semestres: 10,
-          imagen_hero: undefined,
-          descripcion_docentes: "Nuestro equipo docente está conformado por profesionales con amplia experiencia...",
-          video_youtube: "dQw4w9WgXcQ",
-          activa: true,
-        });
-        setIsLoading(false);
-      }, 500);
+      const fetchCarrera = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('carreras')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (error) throw error;
+          
+          if (data) {
+            setFormData({
+              nombre: data.nombre,
+              slug: data.slug,
+              descripcion: data.descripcion || "",
+              duracion: data.duracion || "",
+              semestres: data.semestres || 10,
+              imagen_hero: data.imagen_hero || undefined,
+              descripcion_docentes: data.descripcion_docentes || "",
+              video_youtube: data.video_youtube || "",
+              activa: data.activa,
+            });
+          }
+        } catch (error: any) {
+          console.error('Error fetching carrera:', error);
+          toast.error('Error al cargar la carrera');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchCarrera();
     }
   }, [isEditing, id]);
 
@@ -92,24 +109,50 @@ export default function CarreraFormPage() {
 
     setIsSaving(true);
     
-    // Extract YouTube ID if full URL provided
-    const youtubeId = formData.video_youtube 
-      ? extractYouTubeId(formData.video_youtube) 
-      : undefined;
+    try {
+      // Extract YouTube ID if full URL provided
+      const youtubeId = formData.video_youtube 
+        ? extractYouTubeId(formData.video_youtube) 
+        : undefined;
 
-    const dataToSave = {
-      ...formData,
-      video_youtube: youtubeId || undefined,
-    };
+      const dataToSave = {
+        nombre: formData.nombre,
+        slug: formData.slug,
+        descripcion: formData.descripcion,
+        duracion: formData.duracion,
+        semestres: formData.semestres,
+        imagen_hero: formData.imagen_hero || null,
+        descripcion_docentes: formData.descripcion_docentes || null,
+        video_youtube: youtubeId || null,
+        activa: formData.activa,
+      };
 
-    // TODO: Save to Supabase
-    console.log("Saving:", dataToSave);
-    
-    setTimeout(() => {
-      setIsSaving(false);
-      toast.success(isEditing ? "Carrera actualizada correctamente" : "Carrera creada correctamente");
+      if (isEditing && id) {
+        const { error } = await supabase
+          .from('carreras')
+          .update(dataToSave)
+          .eq('id', id);
+
+        if (error) throw error;
+        toast.success("Carrera actualizada correctamente");
+      } else {
+        const { error } = await supabase
+          .from('carreras')
+          .insert(dataToSave)
+          .select()
+          .single();
+
+        if (error) throw error;
+        toast.success("Carrera creada correctamente");
+      }
+      
       navigate("/admin/carreras");
-    }, 1000);
+    } catch (error: any) {
+      console.error('Error saving carrera:', error);
+      toast.error(error.message || 'Error al guardar la carrera');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleChange = (field: keyof CarreraFormData, value: any) => {

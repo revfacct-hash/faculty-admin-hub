@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Edit, Trash2, Eye, FileText } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Eye, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,52 +25,13 @@ import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getInitials } from "@/lib/admin-utils";
 import { toast } from "sonner";
-import type { Docente } from "@/types/admin";
-
-// Mock data
-const mockDocentes: Docente[] = [
-  {
-    id: "1",
-    carrera_id: "1",
-    nombre: "Ing. Roberto Carlos Saavedra Nogales",
-    especialidad: "Seguridad Informática y Auditoría de Sistemas",
-    titulo: "Ingeniero de Sistemas - Magister en Seguridad Informática",
-    experiencia: "25 años en desarrollo de software y seguridad informática",
-    orden: 1,
-    activo: true,
-    carrera: { id: "1", nombre: "Ingeniería de Sistemas", slug: "ingenieria-sistemas", descripcion: "", duracion: "5 años", semestres: 10, activa: true },
-  },
-  {
-    id: "2",
-    carrera_id: "1",
-    nombre: "Lic. María Elena García Torres",
-    especialidad: "Desarrollo Web y Aplicaciones Móviles",
-    titulo: "Licenciada en Informática - Especialista en UX/UI",
-    experiencia: "15 años en desarrollo de aplicaciones web",
-    orden: 2,
-    activo: true,
-    carrera: { id: "1", nombre: "Ingeniería de Sistemas", slug: "ingenieria-sistemas", descripcion: "", duracion: "5 años", semestres: 10, activa: true },
-  },
-  {
-    id: "3",
-    carrera_id: "2",
-    nombre: "Ing. Carlos Mendoza Ríos",
-    especialidad: "Electrónica de Potencia",
-    titulo: "Ingeniero Electrónico - Doctor en Electrónica",
-    experiencia: "20 años en sistemas electrónicos",
-    orden: 1,
-    activo: false,
-    carrera: { id: "2", nombre: "Ingeniería Electrónica", slug: "ingenieria-electronica", descripcion: "", duracion: "5 años", semestres: 10, activa: true },
-  },
-];
-
-const mockCarreras = [
-  { id: "1", nombre: "Ingeniería de Sistemas" },
-  { id: "2", nombre: "Ingeniería Electrónica" },
-];
+import { supabase } from "@/lib/supabase";
+import type { Docente, Carrera } from "@/types/admin";
 
 export default function DocentesPage() {
-  const [docentes] = useState<Docente[]>(mockDocentes);
+  const [docentes, setDocentes] = useState<Docente[]>([]);
+  const [carreras, setCarreras] = useState<Carrera[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [carreraFilter, setCarreraFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -78,9 +39,48 @@ export default function DocentesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [cvDocente, setCvDocente] = useState<Docente | null>(null);
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      
+      const [docentesRes, carrerasRes] = await Promise.all([
+        supabase
+          .from('docentes')
+          .select(`
+            *,
+            carrera:carreras(*)
+          `)
+          .order('orden'),
+        supabase
+          .from('carreras')
+          .select('id, nombre')
+          .eq('activa', true)
+          .order('nombre')
+      ]);
+
+      if (docentesRes.error) throw docentesRes.error;
+      if (carrerasRes.error) throw carrerasRes.error;
+
+      setDocentes((docentesRes.data || []).map(d => ({
+        ...d,
+        carrera: Array.isArray(d.carrera) ? d.carrera[0] : d.carrera
+      })));
+      setCarreras(carrerasRes.data || []);
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+      toast.error('Error al cargar los datos');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const filteredDocentes = docentes.filter((docente) => {
     const matchesSearch = docente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      docente.especialidad.toLowerCase().includes(searchTerm.toLowerCase());
+      (docente.especialidad?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
     const matchesCarrera = carreraFilter === "all" || docente.carrera_id === carreraFilter;
     const matchesStatus = statusFilter === "all" || 
       (statusFilter === "active" && docente.activo) ||
@@ -91,11 +91,23 @@ export default function DocentesPage() {
   const handleDelete = async () => {
     if (!deleteId) return;
     setIsDeleting(true);
-    setTimeout(() => {
+    try {
+      const { error } = await supabase
+        .from('docentes')
+        .delete()
+        .eq('id', deleteId);
+
+      if (error) throw error;
+      
       toast.success("Docente eliminado correctamente");
-      setIsDeleting(false);
       setDeleteId(null);
-    }, 500);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error deleting docente:', error);
+      toast.error('Error al eliminar el docente');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -131,7 +143,7 @@ export default function DocentesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las carreras</SelectItem>
-                {mockCarreras.map((carrera) => (
+                {carreras.map((carrera) => (
                   <SelectItem key={carrera.id} value={carrera.id}>
                     {carrera.nombre}
                   </SelectItem>
@@ -163,7 +175,13 @@ export default function DocentesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDocentes.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                    </TableCell>
+                  </TableRow>
+                ) : filteredDocentes.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       No se encontraron docentes

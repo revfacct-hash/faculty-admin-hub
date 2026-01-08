@@ -43,7 +43,7 @@ const contentItems = [
   { title: "Eventos", url: "/admin/eventos", icon: Calendar },
   { title: "Ámbitos Laborales", url: "/admin/ambitos-laborales", icon: Briefcase },
   { title: "Perfil Egresado", url: "/admin/perfil-egresado", icon: Award },
-  { title: "Videos", url: "/admin/videos", icon: Video },
+  { title: "Videos Promocionales", url: "/admin/videos-promocionales", icon: Video },
   { title: "Noticias", url: "/admin/noticias", icon: Newspaper },
 ];
 
@@ -66,9 +66,10 @@ export function AdminSidebar() {
     return location.pathname.startsWith(path);
   };
 
-  const handleLogout = () => {
-    // TODO: Implement logout with Supabase
-    console.log("Logout clicked");
+  const handleLogout = async () => {
+    const { supabase } = await import("@/lib/supabase");
+    await supabase.auth.signOut();
+    window.location.href = "/admin/login";
   };
 
   return (

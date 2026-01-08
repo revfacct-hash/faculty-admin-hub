@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -13,40 +14,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageUpload } from "@/components/admin/ImageUpload";
-import { EVENTO_TIPOS } from "@/lib/admin-utils";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import type { EventoFormData } from "@/types/admin";
+import type { NoticiaFormData } from "@/types/admin";
 
-const initialFormData: EventoFormData = {
+const initialFormData: NoticiaFormData = {
   titulo: "",
-  descripcion: "",
-  fecha_inicio: "",
-  fecha_fin: "",
-  ubicacion: "",
-  imagen: undefined,
-  tipo: "Académico",
+  contenido: "",
+  imagen_portada: undefined,
+  autor: "",
+  fecha_publicacion: new Date().toISOString().split('T')[0],
+  categoria: "General",
   activo: true,
 };
 
-export default function EventoFormPage() {
-  const { id } = useParams();
+const categorias = ["General", "Institucional", "Académico", "Tecnología"];
+
+export default function NoticiaFormPage() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEditing = !!id;
   
-  const [formData, setFormData] = useState<EventoFormData>(initialFormData);
+  const [formData, setFormData] = useState<NoticiaFormData>(initialFormData);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isEditing && id) {
       setIsLoading(true);
-      const fetchEvento = async () => {
+      const fetchNoticia = async () => {
         try {
           const { data, error } = await supabase
-            .from('eventos')
+            .from('noticias')
             .select('*')
             .eq('id', id)
             .single();
@@ -56,23 +56,22 @@ export default function EventoFormPage() {
           if (data) {
             setFormData({
               titulo: data.titulo,
-              descripcion: data.descripcion || "",
-              fecha_inicio: new Date(data.fecha_inicio).toISOString().slice(0, 16),
-              fecha_fin: data.fecha_fin ? new Date(data.fecha_fin).toISOString().slice(0, 16) : "",
-              ubicacion: data.ubicacion || "",
-              imagen: data.imagen || undefined,
-              tipo: data.tipo as "Académico" | "Cultural" | "Deportivo",
+              contenido: data.contenido || "",
+              imagen_portada: data.imagen_portada || undefined,
+              autor: data.autor || "",
+              fecha_publicacion: data.fecha_publicacion.split('T')[0],
+              categoria: data.categoria,
               activo: data.activo,
             });
           }
         } catch (error: any) {
-          console.error('Error fetching evento:', error);
-          toast.error('Error al cargar el evento');
+          console.error('Error fetching noticia:', error);
+          toast.error('Error al cargar la noticia');
         } finally {
           setIsLoading(false);
         }
       };
-      fetchEvento();
+      fetchNoticia();
     }
   }, [isEditing, id]);
 
@@ -83,20 +82,16 @@ export default function EventoFormPage() {
       toast.error("El título debe tener al menos 5 caracteres");
       return;
     }
-    if (!formData.descripcion.trim() || formData.descripcion.length < 20) {
-      toast.error("La descripción debe tener al menos 20 caracteres");
+    if (!formData.contenido.trim() || formData.contenido.length < 20) {
+      toast.error("El contenido debe tener al menos 20 caracteres");
       return;
     }
-    if (!formData.fecha_inicio) {
-      toast.error("La fecha de inicio es requerida");
+    if (!formData.autor.trim()) {
+      toast.error("El autor es requerido");
       return;
     }
-    if (!formData.ubicacion.trim()) {
-      toast.error("La ubicación es requerida");
-      return;
-    }
-    if (formData.fecha_fin && formData.fecha_fin < formData.fecha_inicio) {
-      toast.error("La fecha de fin debe ser posterior a la de inicio");
+    if (!formData.fecha_publicacion) {
+      toast.error("La fecha de publicación es requerida");
       return;
     }
 
@@ -105,44 +100,43 @@ export default function EventoFormPage() {
     try {
       const dataToSave = {
         titulo: formData.titulo,
-        descripcion: formData.descripcion || null,
-        fecha_inicio: new Date(formData.fecha_inicio).toISOString(),
-        fecha_fin: formData.fecha_fin ? new Date(formData.fecha_fin).toISOString() : null,
-        ubicacion: formData.ubicacion || null,
-        imagen: formData.imagen || null,
-        tipo: formData.tipo,
+        contenido: formData.contenido || null,
+        imagen_portada: formData.imagen_portada || null,
+        autor: formData.autor || null,
+        fecha_publicacion: new Date(formData.fecha_publicacion).toISOString(),
+        categoria: formData.categoria,
         activo: formData.activo,
       };
 
       if (isEditing && id) {
         const { error } = await supabase
-          .from('eventos')
+          .from('noticias')
           .update(dataToSave)
           .eq('id', id);
 
         if (error) throw error;
-        toast.success("Evento actualizado correctamente");
+        toast.success("Noticia actualizada correctamente");
       } else {
         const { error } = await supabase
-          .from('eventos')
+          .from('noticias')
           .insert(dataToSave)
           .select()
           .single();
 
         if (error) throw error;
-        toast.success("Evento creado correctamente");
+        toast.success("Noticia creada correctamente");
       }
       
-      navigate("/admin/eventos");
+      navigate("/admin/noticias");
     } catch (error: any) {
-      console.error('Error saving evento:', error);
-      toast.error(error.message || 'Error al guardar el evento');
+      console.error('Error saving noticia:', error);
+      toast.error(error.message || 'Error al guardar la noticia');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleChange = (field: keyof EventoFormData, value: any) => {
+  const handleChange = (field: keyof NoticiaFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -157,15 +151,15 @@ export default function EventoFormPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/admin/eventos")}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/admin/noticias")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
           <h2 className="text-2xl font-bold">
-            {isEditing ? "Editar Evento" : "Nuevo Evento"}
+            {isEditing ? "Editar Noticia" : "Nueva Noticia"}
           </h2>
           <p className="text-muted-foreground">
-            {isEditing ? "Modifica los datos del evento" : "Completa los datos del nuevo evento"}
+            {isEditing ? "Modifica los datos de la noticia" : "Completa los datos para crear una nueva noticia"}
           </p>
         </div>
       </div>
@@ -173,79 +167,70 @@ export default function EventoFormPage() {
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
-            <CardTitle>Información del Evento</CardTitle>
+            <CardTitle>Información de la Noticia</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="titulo">Título del Evento *</Label>
+              <Label htmlFor="titulo">Título *</Label>
               <Input
                 id="titulo"
-                placeholder="Ej: Openhouse Universitario 2024"
+                placeholder="Ej: Nuevo Laboratorio de Inteligencia Artificial"
                 value={formData.titulo}
                 onChange={(e) => handleChange("titulo", e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="descripcion">Descripción *</Label>
+              <Label htmlFor="contenido">Contenido *</Label>
               <Textarea
-                id="descripcion"
-                placeholder="Describe el evento..."
-                rows={4}
-                value={formData.descripcion}
-                onChange={(e) => handleChange("descripcion", e.target.value)}
+                id="contenido"
+                placeholder="Escribe el contenido de la noticia..."
+                rows={10}
+                value={formData.contenido}
+                onChange={(e) => handleChange("contenido", e.target.value)}
+                className="font-sans"
               />
               <p className="text-xs text-muted-foreground">
-                Mínimo 20 caracteres ({formData.descripcion.length}/20)
+                Mínimo 20 caracteres ({formData.contenido.length}/20)
               </p>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="fecha_inicio">Fecha y Hora de Inicio *</Label>
+                <Label htmlFor="autor">Autor *</Label>
                 <Input
-                  id="fecha_inicio"
-                  type="datetime-local"
-                  value={formData.fecha_inicio}
-                  onChange={(e) => handleChange("fecha_inicio", e.target.value)}
+                  id="autor"
+                  placeholder="Ej: Dr. Juan Pérez"
+                  value={formData.autor}
+                  onChange={(e) => handleChange("autor", e.target.value)}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="fecha_fin">Fecha y Hora de Fin</Label>
+                <Label htmlFor="fecha_publicacion">Fecha de Publicación *</Label>
                 <Input
-                  id="fecha_fin"
-                  type="datetime-local"
-                  value={formData.fecha_fin || ""}
-                  onChange={(e) => handleChange("fecha_fin", e.target.value)}
+                  id="fecha_publicacion"
+                  type="date"
+                  value={formData.fecha_publicacion}
+                  onChange={(e) => handleChange("fecha_publicacion", e.target.value)}
                 />
               </div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="ubicacion">Ubicación *</Label>
-                <Input
-                  id="ubicacion"
-                  placeholder="Ej: Campus Principal UEB"
-                  value={formData.ubicacion}
-                  onChange={(e) => handleChange("ubicacion", e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tipo">Tipo de Evento *</Label>
-                <Select 
-                  value={formData.tipo} 
-                  onValueChange={(value: any) => handleChange("tipo", value)}
+                <Label htmlFor="categoria">Categoría *</Label>
+                <Select
+                  value={formData.categoria}
+                  onValueChange={(value) => handleChange("categoria", value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un tipo" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {EVENTO_TIPOS.map((tipo) => (
-                      <SelectItem key={tipo} value={tipo}>
-                        {tipo}
+                    {categorias.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -254,19 +239,19 @@ export default function EventoFormPage() {
             </div>
 
             <ImageUpload
-              label="Imagen del Evento"
-              value={formData.imagen}
-              onChange={(base64) => handleChange("imagen", base64)}
-              helperText="Imagen promocional del evento. Máx 1MB"
+              label="Imagen de Portada"
+              value={formData.imagen_portada}
+              onChange={(base64) => handleChange("imagen_portada", base64)}
+              helperText="JPG/PNG, máximo 1MB. Se convertirá a base64"
               aspectRatio="video"
               maxSizeBytes={1000000}
             />
 
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
-                <Label htmlFor="activo">Evento Activo</Label>
+                <Label htmlFor="activo">Noticia Activa</Label>
                 <p className="text-sm text-muted-foreground">
-                  Los eventos inactivos no se mostrarán en el calendario
+                  Las noticias inactivas no se mostrarán en el frontend
                 </p>
               </div>
               <Switch
@@ -280,7 +265,7 @@ export default function EventoFormPage() {
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={() => navigate("/admin/eventos")}
+                onClick={() => navigate("/admin/noticias")}
               >
                 Cancelar
               </Button>

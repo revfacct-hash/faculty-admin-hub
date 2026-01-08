@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,51 +23,43 @@ import { StatusBadge, TypeBadge } from "@/components/admin/StatusBadge";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { formatDateTime } from "@/lib/admin-utils";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import type { Evento } from "@/types/admin";
 
-// Mock data
-const mockEventos: Evento[] = [
-  {
-    id: "1",
-    titulo: "Openhouse Universitario 2024",
-    descripcion: "Ven a conocer nuestras carreras y laboratorios...",
-    fecha_inicio: "2024-03-15T09:00:00",
-    fecha_fin: "2024-03-15T18:00:00",
-    ubicacion: "Campus Principal UEB",
-    tipo: "Académico",
-    activo: true,
-  },
-  {
-    id: "2",
-    titulo: "Feria de Tecnología",
-    descripcion: "Exposición de proyectos de estudiantes...",
-    fecha_inicio: "2024-04-20T10:00:00",
-    ubicacion: "Auditorio Central",
-    tipo: "Académico",
-    activo: true,
-  },
-  {
-    id: "3",
-    titulo: "Festival Cultural UEB",
-    descripcion: "Celebración cultural con música y danza...",
-    fecha_inicio: "2024-05-10T14:00:00",
-    ubicacion: "Plaza Principal",
-    tipo: "Cultural",
-    activo: false,
-  },
-];
-
 export default function EventosPage() {
-  const [eventos] = useState<Evento[]>(mockEventos);
+  const [eventos, setEventos] = useState<Evento[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    fetchEventos();
+  }, []);
+
+  const fetchEventos = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('eventos')
+        .select('*')
+        .order('fecha_inicio', { ascending: false });
+
+      if (error) throw error;
+      setEventos(data || []);
+    } catch (error: any) {
+      console.error('Error fetching eventos:', error);
+      toast.error('Error al cargar los eventos');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const filteredEventos = eventos.filter((evento) => {
     const matchesSearch = evento.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      evento.ubicacion.toLowerCase().includes(searchTerm.toLowerCase());
+      (evento.ubicacion?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
     const matchesTipo = tipoFilter === "all" || evento.tipo === tipoFilter;
     const matchesStatus = statusFilter === "all" || 
       (statusFilter === "active" && evento.activo) ||
@@ -78,11 +70,23 @@ export default function EventosPage() {
   const handleDelete = async () => {
     if (!deleteId) return;
     setIsDeleting(true);
-    setTimeout(() => {
+    try {
+      const { error } = await supabase
+        .from('eventos')
+        .delete()
+        .eq('id', deleteId);
+
+      if (error) throw error;
+      
       toast.success("Evento eliminado correctamente");
-      setIsDeleting(false);
       setDeleteId(null);
-    }, 500);
+      fetchEventos();
+    } catch (error: any) {
+      console.error('Error deleting evento:', error);
+      toast.error('Error al eliminar el evento');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -149,7 +153,13 @@ export default function EventosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEventos.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                    </TableCell>
+                  </TableRow>
+                ) : filteredEventos.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No se encontraron eventos

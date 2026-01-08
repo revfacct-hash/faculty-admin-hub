@@ -1,53 +1,17 @@
+import { useState, useEffect } from "react";
 import { 
   GraduationCap, 
   Users, 
   Calendar, 
   TrendingUp,
   ArrowRight,
-  Clock
+  Clock,
+  Loader2
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-// Mock data - will be replaced with Supabase queries
-const stats = [
-  { 
-    title: "Carreras Activas", 
-    value: "5", 
-    icon: GraduationCap, 
-    description: "Programas académicos",
-    href: "/admin/carreras"
-  },
-  { 
-    title: "Docentes", 
-    value: "24", 
-    icon: Users, 
-    description: "Profesores activos",
-    href: "/admin/docentes"
-  },
-  { 
-    title: "Eventos", 
-    value: "3", 
-    icon: Calendar, 
-    description: "Próximos eventos",
-    href: "/admin/eventos"
-  },
-  { 
-    title: "Visitas del Mes", 
-    value: "1,234", 
-    icon: TrendingUp, 
-    description: "+12% vs mes anterior",
-    href: "/admin"
-  },
-];
-
-const recentActivities = [
-  { action: "Nuevo docente agregado", target: "Ing. Roberto Saavedra", time: "Hace 2 horas" },
-  { action: "Evento actualizado", target: "Openhouse 2024", time: "Hace 5 horas" },
-  { action: "Carrera editada", target: "Ingeniería de Sistemas", time: "Hace 1 día" },
-  { action: "Nueva materia agregada", target: "Programación III", time: "Hace 2 días" },
-];
+import { supabase } from "@/lib/supabase";
 
 const quickActions = [
   { title: "Nueva Carrera", href: "/admin/carreras/crear", icon: GraduationCap },
@@ -56,6 +20,69 @@ const quickActions = [
 ];
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState({
+    carreras: 0,
+    docentes: 0,
+    eventos: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      setIsLoading(true);
+      
+      const [carrerasRes, docentesRes, eventosRes] = await Promise.all([
+        supabase.from('carreras').select('id', { count: 'exact' }).eq('activa', true),
+        supabase.from('docentes').select('id', { count: 'exact' }).eq('activo', true),
+        supabase.from('eventos').select('id', { count: 'exact' }).eq('activo', true),
+      ]);
+
+      setStats({
+        carreras: carrerasRes.count || 0,
+        docentes: docentesRes.count || 0,
+        eventos: eventosRes.count || 0,
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const statsData = [
+    { 
+      title: "Carreras Activas", 
+      value: isLoading ? "..." : stats.carreras.toString(), 
+      icon: GraduationCap, 
+      description: "Programas académicos",
+      href: "/admin/carreras"
+    },
+    { 
+      title: "Docentes", 
+      value: isLoading ? "..." : stats.docentes.toString(), 
+      icon: Users, 
+      description: "Profesores activos",
+      href: "/admin/docentes"
+    },
+    { 
+      title: "Eventos", 
+      value: isLoading ? "..." : stats.eventos.toString(), 
+      icon: Calendar, 
+      description: "Próximos eventos",
+      href: "/admin/eventos"
+    },
+    { 
+      title: "Visitas del Mes", 
+      value: "-", 
+      icon: TrendingUp, 
+      description: "Próximamente",
+      href: "/admin"
+    },
+  ];
   return (
     <div className="space-y-6">
       {/* Welcome */}
@@ -68,7 +95,7 @@ export default function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statsData.map((stat) => (
           <Link key={stat.title} to={stat.href}>
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -116,19 +143,9 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentActivities.map((activity, index) => (
-                <div key={index} className="flex items-start gap-3">
-                  <div className="h-2 w-2 mt-2 rounded-full bg-primary" />
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium">{activity.action}</p>
-                    <p className="text-sm text-muted-foreground">{activity.target}</p>
-                  </div>
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {activity.time}
-                  </span>
-                </div>
-              ))}
+              <p className="text-sm text-muted-foreground text-center py-4">
+                La actividad reciente se mostrará aquí cuando haya cambios en el sistema
+              </p>
             </div>
           </CardContent>
         </Card>

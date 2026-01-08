@@ -63,3 +63,31 @@ export function TypeBadge({ type, className }: TypeBadgeProps) {
     </Badge>
   );
 }
+
+interface RoleBadgeProps {
+  role: "admin" | "editor" | "viewer";
+  className?: string;
+}
+
+export function RoleBadge({ role, className }: RoleBadgeProps) {
+  const roleColors: Record<string, string> = {
+    admin: "bg-red-100 text-red-700 border-red-200",
+    editor: "bg-blue-100 text-blue-700 border-blue-200",
+    viewer: "bg-gray-100 text-gray-700 border-gray-200",
+  };
+
+  const roleLabels: Record<string, string> = {
+    admin: "Administrador",
+    editor: "Editor",
+    viewer: "Visualizador",
+  };
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(roleColors[role] || "bg-gray-100 text-gray-700 border-gray-200", className)}
+    >
+      {roleLabels[role] || role}
+    </Badge>
+  );
+}

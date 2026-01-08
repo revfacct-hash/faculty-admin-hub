@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { supabase, getAdminProfile } from "@/lib/supabase";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -24,13 +25,56 @@ export default function AdminLogin() {
 
     setIsLoading(true);
     
-    // TODO: Implement Supabase authentication
-    // Simulating login for now
-    setTimeout(() => {
-      setIsLoading(false);
-      toast.success("Bienvenido al panel administrativo");
+    try {
+      // Autenticar con Supabase
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        toast.error(authError.message || "Credenciales incorrectas");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!authData.user) {
+        toast.error("Error al iniciar sesión");
+        setIsLoading(false);
+        return;
+      }
+
+      // Obtener perfil del administrador
+      const profile = await getAdminProfile(authData.user.id);
+
+      if (!profile) {
+        toast.error("No tienes permisos para acceder al panel administrativo");
+        await supabase.auth.signOut();
+        setIsLoading(false);
+        return;
+      }
+
+      if (!profile.activo) {
+        toast.error("Tu cuenta está desactivada. Contacta al administrador");
+        await supabase.auth.signOut();
+        setIsLoading(false);
+        return;
+      }
+
+      // Actualizar último acceso
+      await supabase
+        .from('perfiles_administradores')
+        .update({ ultimo_acceso: new Date().toISOString() })
+        .eq('id', authData.user.id);
+
+      toast.success(`Bienvenido, ${profile.nombre_completo}`);
       navigate("/admin");
-    }, 1000);
+    } catch (error) {
+      console.error("Error en login:", error);
+      toast.error("Error al iniciar sesión. Intenta nuevamente");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
