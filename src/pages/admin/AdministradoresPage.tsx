@@ -130,10 +130,16 @@ export default function AdministradoresPage() {
                       <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                     </TableCell>
                   </TableRow>
+                ) : administradores.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      No hay datos existentes
+                    </TableCell>
+                  </TableRow>
                 ) : filteredAdministradores.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No se encontraron administradores
+                      No se encontraron administradores con los filtros aplicados
                     </TableCell>
                   </TableRow>
                 ) : (

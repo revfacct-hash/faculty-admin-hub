@@ -24,6 +24,7 @@ export default function VideosPromocionalesPage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [videos, setVideos] = useState<VideoPromocional[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingCarreras, setIsLoadingCarreras] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<VideoPromocional | null>(null);
@@ -35,10 +36,20 @@ export default function VideosPromocionalesPage() {
   }, []);
 
   useEffect(() => {
+    // Si hay carreras pero no hay carrera seleccionada, seleccionar la primera
+    if (carreras.length > 0 && !selectedCarreraId) {
+      setSelectedCarreraId(carreras[0].id);
+      return;
+    }
+    
     if (selectedCarreraId) {
       fetchVideos();
+    } else if (carreras.length === 0) {
+      // Si no hay carreras disponibles, detener la carga
+      setIsLoading(false);
+      setVideos([]);
     }
-  }, [selectedCarreraId]);
+  }, [selectedCarreraId, carreras]);
 
   useEffect(() => {
     if (carreraId && !selectedCarreraId) {
@@ -48,17 +59,21 @@ export default function VideosPromocionalesPage() {
 
   const fetchCarreras = async () => {
     try {
+      setIsLoadingCarreras(true);
       const { data, error } = await supabase
         .from('carreras')
-        .select('*')
-        .eq('activa', true)
+        .select('id, nombre, activa')
+        .order('activa', { ascending: false })
         .order('nombre');
 
       if (error) throw error;
       setCarreras(data || []);
+      console.log('Carreras cargadas en VideosPromocionalesPage:', data?.length || 0);
     } catch (error: any) {
       console.error('Error fetching carreras:', error);
       toast.error('Error al cargar las carreras');
+    } finally {
+      setIsLoadingCarreras(false);
     }
   };
 
@@ -120,22 +135,33 @@ export default function VideosPromocionalesPage() {
           </div>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
+        <Card className="overflow-visible">
+          <CardContent className="pt-6 overflow-visible">
+            <div className="space-y-2 relative">
               <label className="text-sm font-medium">Seleccionar Carrera</label>
-              <Select value={selectedCarreraId} onValueChange={setSelectedCarreraId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una carrera" />
-                </SelectTrigger>
-              <SelectContent>
-                {carreras.map((carrera) => (
-                  <SelectItem key={carrera.id} value={carrera.id}>
-                    {carrera.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-              </Select>
+              {isLoadingCarreras ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cargando carreras...
+                </div>
+              ) : carreras.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-2">
+                  No hay carreras disponibles
+                </div>
+              ) : (
+                <Select value={selectedCarreraId} onValueChange={setSelectedCarreraId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona una carrera" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999]">
+                    {carreras.map((carrera) => (
+                      <SelectItem key={carrera.id} value={carrera.id}>
+                        {carrera.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -151,18 +177,31 @@ export default function VideosPromocionalesPage() {
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-4">
-            <Select value={selectedCarreraId} onValueChange={setSelectedCarreraId}>
-              <SelectTrigger className="w-[300px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {carreras.map((carrera) => (
-                  <SelectItem key={carrera.id} value={carrera.id}>
-                    {carrera.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              {isLoadingCarreras ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2 px-3 border rounded-md w-[300px]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cargando carreras...
+                </div>
+              ) : (
+                <Select value={selectedCarreraId} onValueChange={setSelectedCarreraId}>
+                  <SelectTrigger className="w-[300px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999]">
+                    {carreras.length === 0 ? (
+                      <SelectItem value="" disabled>No hay carreras disponibles</SelectItem>
+                    ) : (
+                      carreras.map((carrera) => (
+                        <SelectItem key={carrera.id} value={carrera.id}>
+                          {carrera.nombre}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             <div>
               <h2 className="text-2xl font-bold">Videos Promocionales - {selectedCarrera?.nombre}</h2>
               <p className="text-muted-foreground">Gestiona los videos promocionales de la carrera</p>
@@ -186,7 +225,7 @@ export default function VideosPromocionalesPage() {
       ) : videos.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">No hay videos promocionales registrados</p>
+            <p className="text-muted-foreground mb-4">No hay datos existentes</p>
             <Link to={`/admin/videos-promocionales/${selectedCarreraId}/crear`}>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />

@@ -108,12 +108,17 @@ export function ImageUpload({
         onDragLeave={handleDragLeave}
       >
         {value ? (
-          <div className={cn("relative group", aspectRatioClass, !aspectRatioClass && "min-h-[150px]")}>
+          <div className={cn(
+            "relative group overflow-hidden",
+            aspectRatioClass || "max-h-[250px]",
+            !aspectRatioClass && "min-h-[150px]"
+          )}>
             <img
               src={value}
               alt="Preview"
               className={cn(
-                "w-full h-full object-cover",
+                "w-full h-full object-contain",
+                aspectRatioClass ? "object-cover" : "max-h-[250px]",
                 circular ? "rounded-full" : "rounded-lg"
               )}
             />

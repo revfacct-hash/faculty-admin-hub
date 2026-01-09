@@ -37,11 +37,24 @@ export default function PlanEstudiosPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedCarreraId) {
-      fetchMaterias();
-      fetchDesglose();
+    // Si hay carreras pero no hay carrera seleccionada, seleccionar la primera
+    if (carreras.length > 0 && !selectedCarreraId) {
+      setSelectedCarreraId(carreras[0].id);
+      return;
     }
-  }, [selectedCarreraId]);
+    
+    if (selectedCarreraId) {
+      // Cargar materias primero (más importante)
+      fetchMaterias();
+      // Cargar desglose en paralelo (puede tardar más)
+      fetchDesglose();
+    } else if (carreras.length === 0) {
+      // Si no hay carreras disponibles, detener la carga
+      setIsLoading(false);
+      setMaterias([]);
+      setDesglose(null);
+    }
+  }, [selectedCarreraId, carreras]);
 
   useEffect(() => {
     if (carreraId && !selectedCarreraId) {
@@ -51,45 +64,82 @@ export default function PlanEstudiosPage() {
 
   const fetchCarreras = async () => {
     try {
+      // Cargar TODAS las carreras (activas e inactivas) para que el usuario pueda seleccionar
       const { data, error } = await supabase
         .from('carreras')
-        .select('*')
-        .eq('activa', true)
+        .select('id, nombre, activa, semestres')
+        .order('activa', { ascending: false }) // Activas primero
         .order('nombre');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error de Supabase al cargar carreras:', error);
+        throw error;
+      }
+      
       setCarreras(data || []);
+      console.log('Carreras cargadas en PlanEstudiosPage:', data?.length || 0, data);
+      
+      if (!data || data.length === 0) {
+        console.warn('No se encontraron carreras en la base de datos');
+        toast.warning('No hay carreras disponibles. Crea una carrera primero.');
+      }
     } catch (error: any) {
       console.error('Error fetching carreras:', error);
-      toast.error('Error al cargar las carreras');
+      toast.error('Error al cargar las carreras: ' + (error.message || 'Error desconocido'));
+      setIsLoading(false);
     }
   };
 
   const fetchMaterias = async () => {
+    if (!selectedCarreraId) {
+      setIsLoading(false);
+      setMaterias([]);
+      return;
+    }
+
     try {
+      setIsLoading(true);
+      console.log('Cargando materias para carrera:', selectedCarreraId);
+      
+      const startTime = Date.now();
+      
       const { data, error } = await supabase
         .from('plan_estudios')
-        .select('*')
+        .select('id, carrera_id, semestre_numero, materia_nombre, materia_color, horas_teoria, horas_practica, categoria, orden')
         .eq('carrera_id', selectedCarreraId)
-        .order('semestre_numero')
-        .order('orden');
+        .order('semestre_numero', { ascending: true })
+        .order('orden', { ascending: true });
 
-      if (error) throw error;
+      const loadTime = Date.now() - startTime;
+      console.log(`Materias cargadas en ${loadTime}ms:`, data?.length || 0);
+
+      if (error) {
+        console.error('Error de Supabase al cargar materias:', error);
+        throw error;
+      }
+      
       setMaterias(data || []);
+      setIsLoading(false);
     } catch (error: any) {
       console.error('Error fetching materias:', error);
-      toast.error('Error al cargar las materias');
-    } finally {
+      toast.error('Error al cargar las materias: ' + (error.message || 'Error desconocido'));
       setIsLoading(false);
+      setMaterias([]);
     }
   };
 
   const fetchDesglose = async () => {
     try {
+      // Esta función puede tardar, pero no bloquea la carga de materias
       const { data, error } = await supabase
         .rpc('calcular_desglose_carrera', { p_carrera_id: selectedCarreraId });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Error calculando desglose (no crítico):', error);
+        // No mostrar error al usuario, el desglose es opcional
+        return;
+      }
+      
       if (data && data[0]) {
         setDesglose({
           porcentaje_teoria: data[0].porcentaje_teoria,
@@ -101,7 +151,8 @@ export default function PlanEstudiosPage() {
         });
       }
     } catch (error: any) {
-      console.error('Error fetching desglose:', error);
+      console.warn('Error fetching desglose (no crítico):', error);
+      // No establecer desglose si hay error, pero no bloquear la UI
     }
   };
 
@@ -119,7 +170,27 @@ export default function PlanEstudiosPage() {
     return acc;
   }, {} as Record<number, PlanEstudios[]>);
 
-  const semestres = selectedCarrera ? Array.from({ length: selectedCarrera.semestres }, (_, i) => i + 1) : [];
+  const semestres = selectedCarrera?.semestres 
+    ? Array.from({ length: selectedCarrera.semestres }, (_, i) => i + 1) 
+    : [];
+
+  // Debug: verificar datos
+  useEffect(() => {
+    if (materias.length > 0 && selectedCarrera) {
+      const materiasBySem = materias.reduce((acc, materia) => {
+        if (!acc[materia.semestre_numero]) {
+          acc[materia.semestre_numero] = [];
+        }
+        acc[materia.semestre_numero].push(materia);
+        return acc;
+      }, {} as Record<number, PlanEstudios[]>);
+      
+      console.log('Materias cargadas:', materias.length);
+      console.log('Semestres disponibles:', semestres);
+      console.log('Materias por semestre:', materiasBySem);
+      console.log('Carrera seleccionada:', selectedCarrera.nombre, 'Semestres:', selectedCarrera.semestres);
+    }
+  }, [materias.length, selectedCarrera?.id]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -170,22 +241,33 @@ export default function PlanEstudiosPage() {
           </div>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-visible">
+          <CardContent className="pt-6 overflow-visible">
             <div className="space-y-2">
               <label className="text-sm font-medium">Seleccionar Carrera</label>
-              <Select value={selectedCarreraId} onValueChange={setSelectedCarreraId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una carrera" />
-                </SelectTrigger>
-              <SelectContent>
-                {carreras.map((carrera) => (
-                  <SelectItem key={carrera.id} value={carrera.id}>
-                    {carrera.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-              </Select>
+              {carreras.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No hay carreras disponibles. Crea una carrera primero.
+                </div>
+              ) : (
+                <div className="relative">
+                  <Select value={selectedCarreraId} onValueChange={(value) => {
+                    console.log('Carrera seleccionada en PlanEstudiosPage:', value);
+                    setSelectedCarreraId(value);
+                  }}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona una carrera" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      {carreras.map((carrera) => (
+                        <SelectItem key={carrera.id} value={carrera.id}>
+                          {carrera.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -219,12 +301,20 @@ export default function PlanEstudiosPage() {
             </div>
           </div>
         </div>
-        <Link to={`/admin/plan-estudios/${selectedCarreraId}/crear`}>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Materia
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to={`/admin/plan-estudios/${selectedCarreraId}/crear`}>
+            <Button variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              Nueva Materia
+            </Button>
+          </Link>
+          <Link to={`/admin/plan-estudios/${selectedCarreraId}/agregar-masivo`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Agregar Múltiples Materias
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Desglose Automático */}
@@ -284,22 +374,37 @@ export default function PlanEstudiosPage() {
           <CardTitle>Materias por Semestre</CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="1" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
-              {semestres.slice(0, 5).map((sem) => (
-                <TabsTrigger key={sem} value={sem.toString()}>
-                  Semestre {sem}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {semestres.map((semestre) => {
-              const materiasSemestre = materiasBySemestre[semestre] || [];
-              return (
-                <TabsContent key={semestre} value={semestre.toString()} className="mt-4">
-                  <div className="space-y-3">
-                    {materiasSemestre.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p>No hay materias en este semestre</p>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+            </div>
+          ) : materias.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No hay datos existentes</p>
+              <Link to={`/admin/plan-estudios/${selectedCarreraId}/crear`}>
+                <Button variant="outline" size="sm" className="mt-4">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar Primera Materia
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <Tabs defaultValue="1" className="w-full">
+              <TabsList className="flex flex-wrap gap-2 w-full justify-start">
+                {semestres.map((sem) => (
+                  <TabsTrigger key={sem} value={sem.toString()}>
+                    Semestre {sem}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {semestres.map((semestre) => {
+                const materiasSemestre = materiasBySemestre[semestre] || [];
+                return (
+                  <TabsContent key={semestre} value={semestre.toString()} className="mt-4">
+                    <div className="space-y-3">
+                      {materiasSemestre.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p>No hay materias en este semestre</p>
                         <Link to={`/admin/plan-estudios/${selectedCarreraId}/crear?semestre=${semestre}`}>
                           <Button variant="outline" size="sm" className="mt-4">
                             <Plus className="h-4 w-4 mr-2" />
@@ -360,7 +465,8 @@ export default function PlanEstudiosPage() {
                 </TabsContent>
               );
             })}
-          </Tabs>
+            </Tabs>
+          )}
         </CardContent>
       </Card>
 

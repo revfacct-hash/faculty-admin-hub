@@ -145,10 +145,16 @@ export default function CarrerasPage() {
                       <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                     </TableCell>
                   </TableRow>
+                ) : carreras.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      No hay datos existentes
+                    </TableCell>
+                  </TableRow>
                 ) : filteredCarreras.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No se encontraron carreras
+                      No se encontraron carreras con los filtros aplicados
                     </TableCell>
                   </TableRow>
                 ) : (

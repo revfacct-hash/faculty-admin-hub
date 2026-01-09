@@ -26,14 +26,43 @@ export default function AdminLogin() {
     setIsLoading(true);
     
     try {
+      // Validar formato de email antes de intentar autenticar
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        toast.error("Por favor, ingresa un correo electrónico válido");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Intentando autenticar con:', { email: email.trim().toLowerCase() });
+      
       // Autenticar con Supabase
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
       if (authError) {
-        toast.error(authError.message || "Credenciales incorrectas");
+        console.error('❌ Error de autenticación completo:', {
+          message: authError.message,
+          status: authError.status,
+          name: authError.name
+        });
+        
+        // Mensajes de error más específicos
+        let errorMessage = "Error al iniciar sesión";
+        if (authError.message.includes('Invalid login credentials') || authError.message.includes('invalid_grant')) {
+          errorMessage = "Correo electrónico o contraseña incorrectos";
+        } else if (authError.message.includes('Email not confirmed')) {
+          errorMessage = "Por favor, confirma tu correo electrónico primero";
+        } else if (authError.message.includes('User not found')) {
+          errorMessage = "Usuario no encontrado. Verifica tu correo electrónico";
+        } else if (authError.status === 400) {
+          errorMessage = "Error en la solicitud. Verifica tus credenciales o contacta al administrador";
+        } else {
+          errorMessage = authError.message || "Error al iniciar sesión. Intenta nuevamente";
+        }
+        toast.error(errorMessage);
         setIsLoading(false);
         return;
       }

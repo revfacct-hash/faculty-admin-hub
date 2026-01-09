@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
@@ -15,54 +15,109 @@ export function AdminLayout({ title }: AdminLayoutProps) {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const isLoadingRef = useRef(true);
 
   useEffect(() => {
+    let isMounted = true;
+    let subscription: { unsubscribe: () => void } | null = null;
+
+    // Timeout de seguridad para evitar carga infinita
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted && isLoadingRef.current) {
+        console.warn("Timeout de seguridad: forzando detención de carga");
+        isLoadingRef.current = false;
+        setIsLoading(false);
+        navigate("/admin/login", { replace: true });
+      }
+    }, 10000); // 10 segundos máximo
+
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("Error obteniendo sesión:", sessionError);
+          if (isMounted) {
+            isLoadingRef.current = false;
+            setIsLoading(false);
+            navigate("/admin/login", { replace: true });
+          }
+          return;
+        }
         
         if (!session) {
-          navigate("/admin/login", { replace: true });
+          if (isMounted) {
+            isLoadingRef.current = false;
+            setIsLoading(false);
+            navigate("/admin/login", { replace: true });
+          }
           return;
         }
 
         // Verificar que el usuario tenga perfil de administrador
-        const profile = await getAdminProfile(session.user.id);
-        
-        if (!profile || !profile.activo) {
-          await supabase.auth.signOut();
-          navigate("/admin/login", { replace: true });
-          return;
-        }
+        try {
+          const profile = await getAdminProfile(session.user.id);
+          
+          if (!profile || !profile.activo) {
+            await supabase.auth.signOut();
+            if (isMounted) {
+              isLoadingRef.current = false;
+              setIsLoading(false);
+              navigate("/admin/login", { replace: true });
+            }
+            return;
+          }
 
-        setIsAuthenticated(true);
+          if (isMounted) {
+            isLoadingRef.current = false;
+            setIsAuthenticated(true);
+            setIsLoading(false);
+          }
+        } catch (profileError) {
+          console.error("Error obteniendo perfil:", profileError);
+          await supabase.auth.signOut();
+          if (isMounted) {
+            isLoadingRef.current = false;
+            setIsLoading(false);
+            navigate("/admin/login", { replace: true });
+          }
+        }
       } catch (error) {
         console.error("Error verificando autenticación:", error);
-        navigate("/admin/login", { replace: true });
-      } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          isLoadingRef.current = false;
+          setIsLoading(false);
+          navigate("/admin/login", { replace: true });
+        }
       }
     };
 
+    // Verificar autenticación inicial
     checkAuth();
 
-    // Escuchar cambios en la autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+    // Escuchar solo cambios de SIGNED_OUT para evitar loops
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+
+      // Solo procesar SIGNED_OUT explícitamente
+      if (event === 'SIGNED_OUT') {
+        isLoadingRef.current = false;
+        setIsAuthenticated(false);
+        setIsLoading(false);
         navigate("/admin/login", { replace: true });
-      } else if (session) {
-        const profile = await getAdminProfile(session.user.id);
-        if (!profile || !profile.activo) {
-          await supabase.auth.signOut();
-          navigate("/admin/login", { replace: true });
-        } else {
-          setIsAuthenticated(true);
-        }
       }
+      // Ignorar todos los demás eventos (SIGNED_IN, TOKEN_REFRESHED, etc.)
+      // para evitar loops infinitos
     });
 
+    subscription = authSubscription;
+
     return () => {
-      subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
+      isMounted = false;
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, [navigate]);
 

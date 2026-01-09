@@ -21,6 +21,7 @@ export default function PerfilEgresadoPage() {
   const [selectedCarreraId, setSelectedCarreraId] = useState<string>(carreraId || "");
   const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [competencias, setCompetencias] = useState<PerfilEgresado[]>([]);
+  const [isLoadingCarreras, setIsLoadingCarreras] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -32,10 +33,20 @@ export default function PerfilEgresadoPage() {
   }, []);
 
   useEffect(() => {
+    // Si hay carreras pero no hay carrera seleccionada, seleccionar la primera
+    if (carreras.length > 0 && !selectedCarreraId) {
+      setSelectedCarreraId(carreras[0].id);
+      return;
+    }
+    
     if (selectedCarreraId) {
       fetchCompetencias();
+    } else if (carreras.length === 0 && !isLoadingCarreras) {
+      // Si no hay carreras disponibles y ya terminó de cargar, detener la carga
+      setIsLoading(false);
+      setCompetencias([]);
     }
-  }, [selectedCarreraId]);
+  }, [selectedCarreraId, carreras.length, isLoadingCarreras]);
 
   useEffect(() => {
     if (carreraId && !selectedCarreraId) {
@@ -45,17 +56,33 @@ export default function PerfilEgresadoPage() {
 
   const fetchCarreras = async () => {
     try {
+      setIsLoadingCarreras(true);
+      // Cargar TODAS las carreras (activas e inactivas) para que el usuario pueda seleccionar
       const { data, error } = await supabase
         .from('carreras')
-        .select('*')
-        .eq('activa', true)
+        .select('id, nombre, activa')
+        .order('activa', { ascending: false }) // Activas primero
         .order('nombre');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error de Supabase al cargar carreras:', error);
+        throw error;
+      }
+      
       setCarreras(data || []);
+      console.log('Carreras cargadas en PerfilEgresadoPage:', data?.length || 0);
+      
+      if (!data || data.length === 0) {
+        console.warn('No se encontraron carreras en la base de datos');
+        toast.warning('No hay carreras disponibles. Crea una carrera primero.');
+        setIsLoading(false);
+      }
     } catch (error: any) {
       console.error('Error fetching carreras:', error);
-      toast.error('Error al cargar las carreras');
+      toast.error('Error al cargar las carreras: ' + (error.message || 'Error desconocido'));
+      setIsLoading(false);
+    } finally {
+      setIsLoadingCarreras(false);
     }
   };
 
@@ -118,22 +145,38 @@ export default function PerfilEgresadoPage() {
           </div>
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="overflow-visible">
+          <CardContent className="pt-6 overflow-visible">
             <div className="space-y-2">
               <label className="text-sm font-medium">Seleccionar Carrera</label>
-              <Select value={selectedCarreraId} onValueChange={setSelectedCarreraId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una carrera" />
-                </SelectTrigger>
-              <SelectContent>
-                {carreras.map((carrera) => (
-                  <SelectItem key={carrera.id} value={carrera.id}>
-                    {carrera.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-              </Select>
+              {isLoadingCarreras ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Cargando carreras...</span>
+                </div>
+              ) : carreras.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No hay carreras disponibles. Crea una carrera primero.
+                </div>
+              ) : (
+                <div className="relative">
+                  <Select value={selectedCarreraId} onValueChange={(value) => {
+                    console.log('Carrera seleccionada en PerfilEgresadoPage:', value);
+                    setSelectedCarreraId(value);
+                  }}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona una carrera" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      {carreras.map((carrera) => (
+                        <SelectItem key={carrera.id} value={carrera.id}>
+                          {carrera.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -149,30 +192,40 @@ export default function PerfilEgresadoPage() {
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-4">
-            <Select value={selectedCarreraId} onValueChange={setSelectedCarreraId}>
-              <SelectTrigger className="w-[300px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {carreras.map((carrera) => (
-                  <SelectItem key={carrera.id} value={carrera.id}>
-                    {carrera.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Select value={selectedCarreraId} onValueChange={setSelectedCarreraId}>
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[9999]">
+                  {carreras.map((carrera) => (
+                    <SelectItem key={carrera.id} value={carrera.id}>
+                      {carrera.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <h2 className="text-2xl font-bold">Perfil del Egresado - {selectedCarrera?.nombre}</h2>
               <p className="text-muted-foreground">Gestiona las competencias del egresado</p>
             </div>
           </div>
         </div>
-        <Link to={`/admin/perfil-egresado/${selectedCarreraId}/crear`}>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Competencia
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to={`/admin/perfil-egresado/${selectedCarreraId}/crear`}>
+            <Button variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              Nueva Competencia
+            </Button>
+          </Link>
+          <Link to={`/admin/perfil-egresado/${selectedCarreraId}/agregar-masivo`}>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Agregar Múltiples Competencias
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {isLoading ? (
@@ -184,7 +237,7 @@ export default function PerfilEgresadoPage() {
       ) : competencias.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">No hay competencias registradas</p>
+            <p className="text-muted-foreground mb-4">No hay datos existentes</p>
             <Link to={`/admin/perfil-egresado/${selectedCarreraId}/crear`}>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />

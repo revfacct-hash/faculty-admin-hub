@@ -124,6 +124,26 @@ export default function DocenteFormPage() {
     setIsSaving(true);
     
     try {
+      // Verificar tamaño de imagen de perfil base64 si existe
+      if (formData.imagen_avatar) {
+        const base64Size = formData.imagen_avatar.length * 0.75; // Aproximación del tamaño en bytes
+        if (base64Size > 12000000) { // ~12MB límite práctico para base64 (corresponde a ~9MB original)
+          toast.error("La imagen de perfil es demasiado grande. Por favor, comprime la imagen antes de subirla (máximo 10MB).");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // Verificar tamaño de CV imagen base64 si existe
+      if (formData.cv_imagen) {
+        const base64Size = formData.cv_imagen.length * 0.75; // Aproximación del tamaño en bytes
+        if (base64Size > 2500000) { // ~2.5MB límite práctico para base64 (corresponde a ~2MB original)
+          toast.error("La imagen del CV es demasiado grande. Por favor, comprime la imagen antes de subirla (máximo 2MB).");
+          setIsSaving(false);
+          return;
+        }
+      }
+
       const dataToSave = {
         carrera_id: formData.carrera_id,
         nombre: formData.nombre,
@@ -301,8 +321,8 @@ export default function DocenteFormPage() {
                 label="Foto de Perfil"
                 value={formData.imagen_avatar}
                 onChange={(base64) => handleChange("imagen_avatar", base64)}
-                helperText="Imagen pequeña para la lista. Máx 500KB"
-                maxSizeBytes={500000}
+                helperText="Imagen pequeña para la lista. Máx 10MB"
+                maxSizeBytes={10000000}
                 aspectRatio="square"
                 circular
               />

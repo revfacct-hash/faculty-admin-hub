@@ -181,10 +181,16 @@ export default function DocentesPage() {
                       <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                     </TableCell>
                   </TableRow>
+                ) : docentes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      No hay datos existentes
+                    </TableCell>
+                  </TableRow>
                 ) : filteredDocentes.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No se encontraron docentes
+                      No se encontraron docentes con los filtros aplicados
                     </TableCell>
                   </TableRow>
                 ) : (

@@ -35,16 +35,19 @@ export default function AmbitoLaboralFormPage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [initialCarreraSet, setInitialCarreraSet] = useState(false);
 
   useEffect(() => {
     fetchCarreras();
   }, []);
 
   useEffect(() => {
-    if (carreraId) {
+    // Solo establecer carrera_id desde URL si no estamos editando y no se ha establecido antes
+    if (carreraId && !isEditing && !initialCarreraSet) {
       setFormData(prev => ({ ...prev, carrera_id: carreraId }));
+      setInitialCarreraSet(true);
     }
-  }, [carreraId]);
+  }, [carreraId, isEditing, initialCarreraSet]);
 
   useEffect(() => {
     if (isEditing && id) {
@@ -67,6 +70,7 @@ export default function AmbitoLaboralFormPage() {
               imagen: data.imagen || undefined,
               orden: data.orden || 0,
             });
+            setInitialCarreraSet(true); // Marcar como establecido para evitar sobrescritura
           }
         } catch (error: any) {
           console.error('Error fetching ambito:', error);
@@ -77,20 +81,27 @@ export default function AmbitoLaboralFormPage() {
       };
       fetchAmbito();
     }
-  }, [isEditing, id, carreraId]);
+  }, [isEditing, id]);
 
   const fetchCarreras = async () => {
     try {
+      // Cargar TODAS las carreras (activas e inactivas) para que el usuario pueda seleccionar
       const { data, error } = await supabase
         .from('carreras')
-        .select('id, nombre')
-        .eq('activa', true)
+        .select('id, nombre, activa')
+        .order('activa', { ascending: false }) // Activas primero
         .order('nombre');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error de Supabase al cargar carreras:', error);
+        throw error;
+      }
+      
       setCarreras(data || []);
+      console.log('Carreras cargadas en AmbitoLaboralFormPage:', data?.length || 0);
     } catch (error: any) {
       console.error('Error fetching carreras:', error);
+      toast.error('Error al cargar las carreras');
     }
   };
 
@@ -178,30 +189,33 @@ export default function AmbitoLaboralFormPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <Card>
+        <Card className="overflow-visible">
           <CardHeader>
             <CardTitle>Información del Ámbito Laboral</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="carrera_id">Carrera *</Label>
-              <Select
-                value={formData.carrera_id}
-                onValueChange={(value) => handleChange("carrera_id", value)}
-                disabled={!!carreraId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una carrera" />
-                </SelectTrigger>
-                  <SelectContent>
-                    {carreras.map((carrera) => (
-                      <SelectItem key={carrera.id} value={carrera.id}>
-                        {carrera.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-              </Select>
-            </div>
+          <CardContent className="space-y-6 overflow-visible">
+            {!carreraId && (
+              <div className="space-y-2">
+                <Label htmlFor="carrera_id">Carrera *</Label>
+                <div className="relative">
+                  <Select
+                    value={formData.carrera_id}
+                    onValueChange={(value) => handleChange("carrera_id", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una carrera" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      {carreras.map((carrera) => (
+                        <SelectItem key={carrera.id} value={carrera.id}>
+                          {carrera.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="titulo">Título *</Label>
@@ -228,9 +242,9 @@ export default function AmbitoLaboralFormPage() {
               label="Imagen del Ámbito Laboral"
               value={formData.imagen}
               onChange={(base64) => handleChange("imagen", base64)}
-              helperText="JPG/PNG, máximo 1MB. Se convertirá a base64"
+              helperText="JPG/PNG, máximo 10MB. Se convertirá a base64"
               aspectRatio="video"
-              maxSizeBytes={1000000}
+              maxSizeBytes={10000000}
             />
 
             <div className="space-y-2">

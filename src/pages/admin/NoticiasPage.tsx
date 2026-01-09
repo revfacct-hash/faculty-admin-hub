@@ -163,10 +163,16 @@ export default function NoticiasPage() {
                       <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                     </TableCell>
                   </TableRow>
+                ) : noticias.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      No hay datos existentes
+                    </TableCell>
+                  </TableRow>
                 ) : filteredNoticias.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No se encontraron noticias
+                      No se encontraron noticias con los filtros aplicados
                     </TableCell>
                   </TableRow>
                 ) : (

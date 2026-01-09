@@ -18,10 +18,13 @@ import EventosPage from "./pages/admin/EventosPage";
 import EventoFormPage from "./pages/admin/EventoFormPage";
 import PlanEstudiosPage from "./pages/admin/PlanEstudiosPage";
 import PlanEstudiosFormPage from "./pages/admin/PlanEstudiosFormPage";
+import PlanEstudiosMasivoPage from "./pages/admin/PlanEstudiosMasivoPage";
 import AmbitosLaboralesPage from "./pages/admin/AmbitosLaboralesPage";
 import AmbitoLaboralFormPage from "./pages/admin/AmbitoLaboralFormPage";
+import AmbitosLaboralesMasivoPage from "./pages/admin/AmbitosLaboralesMasivoPage";
 import PerfilEgresadoPage from "./pages/admin/PerfilEgresadoPage";
 import PerfilEgresadoFormPage from "./pages/admin/PerfilEgresadoFormPage";
+import PerfilEgresadoMasivoPage from "./pages/admin/PerfilEgresadoMasivoPage";
 import VideosPromocionalesPage from "./pages/admin/VideosPromocionalesPage";
 import VideoPromocionalFormPage from "./pages/admin/VideoPromocionalFormPage";
 import NoticiasPage from "./pages/admin/NoticiasPage";
@@ -58,14 +61,17 @@ const App = () => (
             <Route path="plan-estudios/:carreraId" element={<PlanEstudiosPage />} />
             <Route path="plan-estudios/:carreraId/crear" element={<PlanEstudiosFormPage />} />
             <Route path="plan-estudios/:carreraId/editar/:id" element={<PlanEstudiosFormPage />} />
+            <Route path="plan-estudios/:carreraId/agregar-masivo" element={<PlanEstudiosMasivoPage />} />
             <Route path="ambitos-laborales" element={<AmbitosLaboralesPage />} />
             <Route path="ambitos-laborales/:carreraId" element={<AmbitosLaboralesPage />} />
             <Route path="ambitos-laborales/:carreraId/crear" element={<AmbitoLaboralFormPage />} />
             <Route path="ambitos-laborales/:carreraId/editar/:id" element={<AmbitoLaboralFormPage />} />
+            <Route path="ambitos-laborales/:carreraId/agregar-masivo" element={<AmbitosLaboralesMasivoPage />} />
             <Route path="perfil-egresado" element={<PerfilEgresadoPage />} />
             <Route path="perfil-egresado/:carreraId" element={<PerfilEgresadoPage />} />
             <Route path="perfil-egresado/:carreraId/crear" element={<PerfilEgresadoFormPage />} />
             <Route path="perfil-egresado/:carreraId/editar/:id" element={<PerfilEgresadoFormPage />} />
+            <Route path="perfil-egresado/:carreraId/agregar-masivo" element={<PerfilEgresadoMasivoPage />} />
             <Route path="videos-promocionales" element={<VideosPromocionalesPage />} />
             <Route path="videos-promocionales/:carreraId" element={<VideosPromocionalesPage />} />
             <Route path="videos-promocionales/:carreraId/crear" element={<VideoPromocionalFormPage />} />

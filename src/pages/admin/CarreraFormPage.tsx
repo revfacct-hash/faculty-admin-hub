@@ -17,6 +17,7 @@ const initialFormData: CarreraFormData = {
   nombre: "",
   slug: "",
   descripcion: "",
+  resumen_breve: "",
   duracion: "",
   semestres: 10,
   imagen_hero: undefined,
@@ -59,16 +60,18 @@ export default function CarreraFormPage() {
           if (error) throw error;
           
           if (data) {
+            const carreraData = data as any;
             setFormData({
-              nombre: data.nombre,
-              slug: data.slug,
-              descripcion: data.descripcion || "",
-              duracion: data.duracion || "",
-              semestres: data.semestres || 10,
-              imagen_hero: data.imagen_hero || undefined,
-              descripcion_docentes: data.descripcion_docentes || "",
-              video_youtube: data.video_youtube || "",
-              activa: data.activa,
+              nombre: carreraData.nombre,
+              slug: carreraData.slug,
+              descripcion: carreraData.descripcion || "",
+              resumen_breve: carreraData.resumen_breve || "",
+              duracion: carreraData.duracion || "",
+              semestres: carreraData.semestres || 10,
+              imagen_hero: carreraData.imagen_hero || undefined,
+              descripcion_docentes: carreraData.descripcion_docentes || "",
+              video_youtube: carreraData.video_youtube || "",
+              activa: carreraData.activa,
             });
           }
         } catch (error: any) {
@@ -115,10 +118,21 @@ export default function CarreraFormPage() {
         ? extractYouTubeId(formData.video_youtube) 
         : undefined;
 
+      // Verificar tamaño de imagen base64 si existe
+      if (formData.imagen_hero) {
+        const base64Size = formData.imagen_hero.length * 0.75; // Aproximación del tamaño en bytes
+        if (base64Size > 5000000) { // 5MB límite práctico para base64
+          toast.error("La imagen es demasiado grande. Por favor, comprime la imagen antes de subirla.");
+          setIsSaving(false);
+          return;
+        }
+      }
+
       const dataToSave = {
         nombre: formData.nombre,
         slug: formData.slug,
         descripcion: formData.descripcion,
+        resumen_breve: formData.resumen_breve || null,
         duracion: formData.duracion,
         semestres: formData.semestres,
         imagen_hero: formData.imagen_hero || null,
@@ -127,30 +141,52 @@ export default function CarreraFormPage() {
         activa: formData.activa,
       };
 
+      console.log('Guardando carrera...', { 
+        isEditing, 
+        id, 
+        nombre: dataToSave.nombre,
+        tieneImagen: !!dataToSave.imagen_hero,
+        tamañoImagen: dataToSave.imagen_hero ? dataToSave.imagen_hero.length : 0
+      });
+
       if (isEditing && id) {
-        const { error } = await supabase
-          .from('carreras')
+        // Type assertion para evitar errores de tipos de Supabase generados
+        const { error } = await (supabase
+          .from('carreras') as any)
           .update(dataToSave)
           .eq('id', id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error de Supabase:', error);
+          throw error;
+        }
         toast.success("Carrera actualizada correctamente");
       } else {
-        const { error } = await supabase
-          .from('carreras')
-          .insert(dataToSave)
-          .select()
-          .single();
+        // Type assertion para evitar errores de tipos de Supabase generados
+        const { error } = await (supabase
+          .from('carreras') as any)
+          .insert(dataToSave);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error de Supabase:', error);
+          throw error;
+        }
         toast.success("Carrera creada correctamente");
       }
       
+      // Pequeño delay para que el usuario vea el mensaje de éxito
+      await new Promise(resolve => setTimeout(resolve, 500));
       navigate("/admin/carreras");
     } catch (error: any) {
       console.error('Error saving carrera:', error);
-      toast.error(error.message || 'Error al guardar la carrera');
-    } finally {
+      const errorMessage = error?.message || error?.error_description || 'Error al guardar la carrera';
+      console.error('Detalles del error:', {
+        code: error?.code,
+        message: errorMessage,
+        details: error?.details,
+        hint: error?.hint
+      });
+      toast.error(errorMessage);
       setIsSaving(false);
     }
   };
@@ -215,6 +251,20 @@ export default function CarreraFormPage() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="resumen_breve">Resumen Breve de la Carrera</Label>
+              <Textarea
+                id="resumen_breve"
+                placeholder="Escribe un resumen corto que aparecerá en la sección hero (entre el título y el botón)..."
+                rows={2}
+                value={formData.resumen_breve || ""}
+                onChange={(e) => handleChange("resumen_breve", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Texto corto que se mostrará en la página principal de la carrera ({formData.resumen_breve?.length || 0} caracteres)
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="descripcion">Descripción de la Carrera *</Label>
               <Textarea
                 id="descripcion"
@@ -259,7 +309,7 @@ export default function CarreraFormPage() {
               onChange={(base64) => handleChange("imagen_hero", base64)}
               helperText="Imagen principal que se muestra en la página de la carrera"
               aspectRatio="video"
-              maxSizeBytes={1000000}
+              maxSizeBytes={4000000}
             />
 
             <div className="space-y-2">

@@ -7,6 +7,7 @@ export interface Carrera {
   nombre: string;
   slug: string;
   descripcion: string;
+  resumen_breve?: string;
   duracion: string;
   semestres: number;
   imagen_hero?: string;

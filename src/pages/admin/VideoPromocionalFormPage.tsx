@@ -84,12 +84,13 @@ export default function VideoPromocionalFormPage() {
     try {
       const { data, error } = await supabase
         .from('carreras')
-        .select('id, nombre')
-        .eq('activa', true)
+        .select('id, nombre, activa')
+        .order('activa', { ascending: false })
         .order('nombre');
 
       if (error) throw error;
       setCarreras(data || []);
+      console.log('Carreras cargadas en VideoPromocionalFormPage:', data?.length || 0);
     } catch (error: any) {
       console.error('Error fetching carreras:', error);
     }
@@ -184,30 +185,31 @@ export default function VideoPromocionalFormPage() {
 
       <form onSubmit={handleSubmit}>
         <div className="grid gap-6 md:grid-cols-2">
-          <Card>
+          <Card className="overflow-visible">
             <CardHeader>
               <CardTitle>Información del Video</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="carrera_id">Carrera *</Label>
-                <Select
-                  value={formData.carrera_id}
-                  onValueChange={(value) => handleChange("carrera_id", value)}
-                  disabled={!!carreraId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona una carrera" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {carreras.map((carrera) => (
-                      <SelectItem key={carrera.id} value={carrera.id}>
-                        {carrera.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <CardContent className="space-y-6 overflow-visible">
+              {!carreraId && (
+                <div className="space-y-2">
+                  <Label htmlFor="carrera_id">Carrera *</Label>
+                  <Select
+                    value={formData.carrera_id}
+                    onValueChange={(value) => handleChange("carrera_id", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una carrera" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      {carreras.map((carrera) => (
+                        <SelectItem key={carrera.id} value={carrera.id}>
+                          {carrera.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="titulo">Título</Label>

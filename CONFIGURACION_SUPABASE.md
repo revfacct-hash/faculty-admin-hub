@@ -17,7 +17,7 @@ Crea un archivo `.env.local` en la raíz del proyecto con el siguiente contenido
 ```env
 # Supabase Configuration
 VITE_SUPABASE_URL=https://jovxdfldxlxmwbqfkigl.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_2FNljVC9UEO4O4nMrNXRSQ_VsWcBfzB
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpvdnhkZmxkeGx4bXdicWZraWdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4ODA2NDksImV4cCI6MjA4MzQ1NjY0OX0.rMoiOqrPIcUbXK85olya5FqsZNSOALIkpAM0vYAH2e8
 ```
 
 ✅ **Archivo `.env.local` ya configurado con tus credenciales.**
@@ -70,7 +70,37 @@ VALUES (
 - Verifica que las variables empiezan con `VITE_`
 - Reinicia el servidor después de crear/modificar `.env.local`
 
+### Error 400 en `/auth/v1/token?grant_type=password`
+Este error puede deberse a varias causas:
+
+1. **API Key incorrecta**:
+   - ⚠️ **IMPORTANTE**: Asegúrate de usar la **"anon public"** key, NO la "publishable" key
+   - Ve a Supabase Dashboard > Settings > API
+   - Busca la sección "Project API keys"
+   - Copia la key que dice **"anon"** o **"public"** (no "publishable")
+   - La key debe ser muy larga (más de 100 caracteres) y empezar con `eyJ` (es un JWT)
+
+2. **Usuario no existe en Supabase Auth**:
+   - Ve a Supabase Dashboard > Authentication > Users
+   - Verifica que el usuario existe
+   - Si no existe, créalo manualmente o usa el signup
+
+3. **Credenciales incorrectas**:
+   - Verifica que el email y password sean correctos
+   - El email debe estar en minúsculas y sin espacios
+
+4. **Configuración de autenticación**:
+   - Ve a Supabase Dashboard > Authentication > Providers
+   - Asegúrate de que "Email" está habilitado
+   - Verifica que no hay restricciones de dominio
+
 ### Error: "No tienes permisos para acceder"
 - Verifica que el usuario existe en `perfiles_administradores`
 - Verifica que `activo = true` en el perfil
 - Verifica que el `id` en `perfiles_administradores` coincide con el `id` en `auth.users`
+
+### Verificar configuración actual
+Abre la consola del navegador (F12) y verifica:
+1. Que no aparezcan errores sobre variables de entorno faltantes
+2. Que la URL de Supabase sea correcta (debe terminar en `.supabase.co`)
+3. Que la API key tenga el formato correcto (muy larga, empieza con `eyJ`)

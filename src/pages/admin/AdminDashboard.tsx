@@ -24,6 +24,7 @@ export default function AdminDashboard() {
     carreras: 0,
     docentes: 0,
     eventos: 0,
+    visitasMes: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -35,19 +36,23 @@ export default function AdminDashboard() {
     try {
       setIsLoading(true);
       
-      const [carrerasRes, docentesRes, eventosRes] = await Promise.all([
+      const [carrerasRes, docentesRes, eventosRes, visitasRes] = await Promise.all([
         supabase.from('carreras').select('id', { count: 'exact' }).eq('activa', true),
         supabase.from('docentes').select('id', { count: 'exact' }).eq('activo', true),
         supabase.from('eventos').select('id', { count: 'exact' }).eq('activo', true),
+        supabase.rpc('obtener_visitas_mes'),
       ]);
 
       setStats({
         carreras: carrerasRes.count || 0,
         docentes: docentesRes.count || 0,
         eventos: eventosRes.count || 0,
+        visitasMes: visitasRes.data || 0,
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
+      // Si hay error con visitas, no fallar todo el dashboard
+      setStats(prev => ({ ...prev, visitasMes: 0 }));
     } finally {
       setIsLoading(false);
     }
@@ -77,9 +82,9 @@ export default function AdminDashboard() {
     },
     { 
       title: "Visitas del Mes", 
-      value: "-", 
+      value: isLoading ? "..." : stats.visitasMes.toLocaleString(), 
       icon: TrendingUp, 
-      description: "Próximamente",
+      description: "Total de visitas este mes",
       href: "/admin"
     },
   ];

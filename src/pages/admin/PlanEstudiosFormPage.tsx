@@ -36,22 +36,28 @@ export default function PlanEstudiosFormPage() {
   
   const [formData, setFormData] = useState<PlanEstudiosFormData>(initialFormData);
   const [carreras, setCarreras] = useState<Carrera[]>([]);
+  const [selectedCarrera, setSelectedCarrera] = useState<Carrera | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingCarreras, setIsLoadingCarreras] = useState(true);
+  const [initialCarreraSet, setInitialCarreraSet] = useState(false);
 
   useEffect(() => {
     fetchCarreras();
   }, []);
 
   useEffect(() => {
-    if (carreraId) {
+    // Solo establecer carrera_id una vez cuando viene en la URL al montar el componente
+    // Esto permite que el usuario pueda cambiar la carrera después
+    if (carreraId && !initialCarreraSet && !isEditing) {
       setFormData(prev => ({ ...prev, carrera_id: carreraId }));
+      setInitialCarreraSet(true);
     }
     const semestre = searchParams.get("semestre");
     if (semestre) {
       setFormData(prev => ({ ...prev, semestre_numero: parseInt(semestre) }));
     }
-  }, [carreraId, searchParams]);
+  }, [carreraId, searchParams, initialCarreraSet, isEditing]);
 
   useEffect(() => {
     if (isEditing && id) {
@@ -77,6 +83,14 @@ export default function PlanEstudiosFormPage() {
               categoria: data.categoria as typeof formData.categoria,
               orden: data.orden,
             });
+            
+            // Cargar la información de la carrera para obtener el número de semestres
+            if (data.carrera_id) {
+              const carrera = carreras.find(c => c.id === data.carrera_id);
+              if (carrera) {
+                setSelectedCarrera(carrera);
+              }
+            }
           }
         } catch (error: any) {
           console.error('Error fetching materia:', error);
@@ -91,16 +105,39 @@ export default function PlanEstudiosFormPage() {
 
   const fetchCarreras = async () => {
     try {
+      setIsLoadingCarreras(true);
+      // Cargar TODAS las carreras (activas e inactivas) con el campo semestres
       const { data, error } = await supabase
         .from('carreras')
-        .select('id, nombre')
-        .eq('activa', true)
+        .select('id, nombre, activa, semestres')
+        .order('activa', { ascending: false }) // Activas primero
         .order('nombre');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error de Supabase al cargar carreras:', error);
+        throw error;
+      }
+      
       setCarreras(data || []);
+      console.log('Carreras cargadas:', data?.length || 0, data);
+      
+      // Si hay una carrera pre-seleccionada, establecerla
+      if (carreraId && data) {
+        const preSelectedCarrera = data.find(c => c.id === carreraId);
+        if (preSelectedCarrera) {
+          setSelectedCarrera(preSelectedCarrera);
+        }
+      }
+      
+      if (!data || data.length === 0) {
+        console.warn('No se encontraron carreras en la base de datos');
+        toast.warning('No hay carreras disponibles. Crea una carrera primero.');
+      }
     } catch (error: any) {
       console.error('Error fetching carreras:', error);
+      toast.error('Error al cargar las carreras: ' + (error.message || 'Error desconocido'));
+    } finally {
+      setIsLoadingCarreras(false);
     }
   };
 
@@ -119,8 +156,11 @@ export default function PlanEstudiosFormPage() {
       toast.error("Las horas no pueden ser negativas");
       return;
     }
-    if (formData.semestre_numero < 1 || formData.semestre_numero > 10) {
-      toast.error("El semestre debe estar entre 1 y 10");
+    // Validar semestre según la carrera seleccionada
+    const carrera = carreras.find(c => c.id === formData.carrera_id);
+    const maxSemestres = carrera?.semestres || 10;
+    if (formData.semestre_numero < 1 || formData.semestre_numero > maxSemestres) {
+      toast.error(`El semestre debe estar entre 1 y ${maxSemestres}`);
       return;
     }
 
@@ -167,7 +207,25 @@ export default function PlanEstudiosFormPage() {
   };
 
   const handleChange = (field: keyof PlanEstudiosFormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const newFormData = { ...prev, [field]: value };
+      
+      // Si se cambia la carrera, actualizar la carrera seleccionada y resetear el semestre si es necesario
+      if (field === 'carrera_id') {
+        const carrera = carreras.find(c => c.id === value);
+        if (carrera) {
+          setSelectedCarrera(carrera);
+          // Si el semestre actual es mayor que los semestres de la nueva carrera, resetear a 1
+          if (newFormData.semestre_numero > (carrera.semestres || 10)) {
+            newFormData.semestre_numero = 1;
+          }
+        } else {
+          setSelectedCarrera(null);
+        }
+      }
+      
+      return newFormData;
+    });
   };
 
   if (isLoading) {
@@ -195,30 +253,63 @@ export default function PlanEstudiosFormPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <Card>
+        <Card className="overflow-visible">
           <CardHeader>
             <CardTitle>Información de la Materia</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 overflow-visible">
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="carrera_id">Carrera *</Label>
-                <Select
-                  value={formData.carrera_id}
-                  onValueChange={(value) => handleChange("carrera_id", value)}
-                  disabled={!!carreraId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona una carrera" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {carreras.map((carrera) => (
-                      <SelectItem key={carrera.id} value={carrera.id}>
-                        {carrera.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isLoadingCarreras ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando carreras...
+                  </div>
+                ) : carreras.length === 0 ? (
+                  <div className="text-sm text-destructive">
+                    No hay carreras activas disponibles. Crea una carrera primero.
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.carrera_id}
+                    onValueChange={(value) => {
+                      console.log('Carrera seleccionada:', value);
+                      handleChange("carrera_id", value);
+                    }}
+                  >
+                    <SelectTrigger id="carrera-select-trigger" className="w-full">
+                      <SelectValue placeholder="Selecciona una carrera" />
+                    </SelectTrigger>
+                    <SelectContent 
+                      position="popper"
+                      className="z-[9999] max-h-[300px] w-[var(--radix-select-trigger-width)]"
+                      sideOffset={5}
+                    >
+                      {carreras.length > 0 ? (
+                        carreras.map((carrera) => (
+                          <SelectItem key={carrera.id} value={carrera.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{carrera.nombre}</span>
+                              {!carrera.activa && (
+                                <span className="text-xs text-muted-foreground">(Inactiva)</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          No hay carreras disponibles
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+                {carreraId && carreras.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Puedes cambiar la carrera si lo deseas
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -226,18 +317,28 @@ export default function PlanEstudiosFormPage() {
                 <Select
                   value={formData.semestre_numero.toString()}
                   onValueChange={(value) => handleChange("semestre_numero", parseInt(value))}
+                  disabled={!formData.carrera_id}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder={formData.carrera_id ? "Selecciona un semestre" : "Primero selecciona una carrera"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 10 }, (_, i) => i + 1).map((sem) => (
-                      <SelectItem key={sem} value={sem.toString()}>
-                        Semestre {sem}
-                      </SelectItem>
-                    ))}
+                    {(() => {
+                      // Obtener el número de semestres de la carrera seleccionada
+                      const numSemestres = selectedCarrera?.semestres || (formData.carrera_id ? 10 : 0);
+                      return Array.from({ length: numSemestres }, (_, i) => i + 1).map((sem) => (
+                        <SelectItem key={sem} value={sem.toString()}>
+                          Semestre {sem}
+                        </SelectItem>
+                      ));
+                    })()}
                   </SelectContent>
                 </Select>
+                {selectedCarrera && (
+                  <p className="text-xs text-muted-foreground">
+                    Esta carrera tiene {selectedCarrera.semestres} semestres
+                  </p>
+                )}
               </div>
             </div>
 
