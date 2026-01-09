@@ -61,10 +61,20 @@ export default function VideoPromocionalFormPage() {
           if (error) throw error;
           
           if (data) {
+            // Asegurarnos de que siempre mostremos el ID correcto
+            const originalUrl = data.url_youtube || "";
+            const videoId = originalUrl ? extractYouTubeId(originalUrl) || originalUrl : "";
+            
+            console.log('Video cargado:', {
+              original: originalUrl,
+              extractedId: videoId,
+              isValid: videoId && videoId.length === 11
+            });
+            
             setFormData({
               carrera_id: data.carrera_id || "",
               titulo: data.titulo || "",
-              url_youtube: data.url_youtube,
+              url_youtube: videoId, // Mostrar siempre el ID limpio
               descripcion: data.descripcion || "",
               activo: data.activo,
             });
@@ -108,9 +118,24 @@ export default function VideoPromocionalFormPage() {
       return;
     }
 
-    const videoId = extractYouTubeId(formData.url_youtube);
+    // Extraer el ID del video (puede ser URL completa o solo ID)
+    const inputValue = formData.url_youtube.trim();
+    const videoId = extractYouTubeId(inputValue);
+    
+    console.log('Guardando video:', {
+      input: inputValue,
+      extractedId: videoId,
+      isValid: videoId && videoId.length === 11
+    });
+    
     if (!videoId) {
-      toast.error("URL de YouTube inválida");
+      toast.error("URL de YouTube inválida. Asegúrate de ingresar una URL válida o un ID de video");
+      return;
+    }
+    
+    // Validar que el ID tenga el formato correcto (11 caracteres)
+    if (videoId.length !== 11) {
+      toast.error(`El ID del video de YouTube debe tener 11 caracteres. Se obtuvo: ${videoId.length} caracteres`);
       return;
     }
 

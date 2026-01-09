@@ -19,24 +19,42 @@ export const convertFileToBase64 = (file: File): Promise<string> => {
  * Extract YouTube video ID from URL or return as-is if already an ID
  */
 export const extractYouTubeId = (url: string): string | null => {
-  if (!url) return null;
+  if (!url || !url.trim()) return null;
+  
+  const trimmedUrl = url.trim();
   
   // If already an ID (11 characters, alphanumeric with - and _)
-  if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
-    return url;
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmedUrl)) {
+    return trimmedUrl;
   }
   
   // Common YouTube URL patterns
   const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /youtube\.com\/watch\?.*v=([^&\n?#]+)/,
+    // youtube.com/watch?v=VIDEO_ID
+    /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
+    // youtu.be/VIDEO_ID
+    /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+    // youtube.com/embed/VIDEO_ID
+    /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    // youtube.com/watch?feature=...&v=VIDEO_ID
+    /(?:youtube\.com\/watch\?.*[&?]v=)([a-zA-Z0-9_-]{11})/,
+    // youtube.com/v/VIDEO_ID
+    /(?:youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+    // youtube.com/.../VIDEO_ID (catch-all)
+    /youtube\.com\/.*[\/=]([a-zA-Z0-9_-]{11})(?:[?&#]|$)/,
   ];
   
   for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match && match[1]) {
+    const match = trimmedUrl.match(pattern);
+    if (match && match[1] && match[1].length === 11) {
       return match[1];
     }
+  }
+  
+  // Si no coincide con ningún patrón pero tiene 11 caracteres, podría ser un ID
+  const possibleId = trimmedUrl.split(/[?&#]/)[0]; // Tomar solo la parte antes de query params
+  if (/^[a-zA-Z0-9_-]{11}$/.test(possibleId)) {
+    return possibleId;
   }
   
   return null;

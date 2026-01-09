@@ -16,7 +16,6 @@ const initialFormData: ConfiguracionFacultadFormData = {
   titulo_hero: "Facultad de Ciencia y Tecnología",
   subtitulo_hero: "Universidad Evangélica Boliviana",
   imagen_hero: undefined,
-  logo_facultad: undefined,
   descripcion_general: "",
   video_youtube: "",
   activo: true,
@@ -44,7 +43,6 @@ export default function ConfiguracionPage() {
             titulo_hero: data.titulo_hero || "Facultad de Ciencia y Tecnología",
             subtitulo_hero: data.subtitulo_hero || "Universidad Evangélica Boliviana",
             imagen_hero: data.imagen_hero || undefined,
-            logo_facultad: data.logo_facultad || undefined,
             descripcion_general: data.descripcion_general || "",
             video_youtube: data.video_youtube || "",
             activo: data.activo,
@@ -95,7 +93,6 @@ export default function ConfiguracionPage() {
         titulo_hero: formData.titulo_hero,
         subtitulo_hero: formData.subtitulo_hero,
         imagen_hero: formData.imagen_hero || null,
-        logo_facultad: formData.logo_facultad || null,
         descripcion_general: formData.descripcion_general || null,
         video_youtube: youtubeId || null,
         activo: formData.activo,
@@ -191,20 +188,11 @@ export default function ConfiguracionPage() {
               maxSizeBytes={2000000}
             />
 
-            <ImageUpload
-              label="Logo de la Facultad *"
-              value={formData.logo_facultad}
-              onChange={(base64) => handleChange("logo_facultad", base64)}
-              helperText="Logo que se muestra en el header. PNG con transparencia recomendado, máximo 500KB"
-              aspectRatio="square"
-              maxSizeBytes={500000}
-            />
-
             <div className="space-y-2">
-              <Label htmlFor="descripcion_general">Descripción General de la Facultad *</Label>
+              <Label htmlFor="descripcion_general">Descripción del Video Promocional *</Label>
               <Textarea
                 id="descripcion_general"
-                placeholder="Describe la facultad..."
+                placeholder="Describe el video promocional..."
                 rows={5}
                 value={formData.descripcion_general}
                 onChange={(e) => handleChange("descripcion_general", e.target.value)}
