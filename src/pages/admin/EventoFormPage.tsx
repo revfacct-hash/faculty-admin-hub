@@ -114,30 +114,54 @@ export default function EventoFormPage() {
         activo: formData.activo,
       };
 
+      console.log('Guardando evento...', { 
+        isEditing, 
+        id, 
+        titulo: dataToSave.titulo,
+        tieneImagen: !!dataToSave.imagen,
+        fecha_inicio: dataToSave.fecha_inicio
+      });
+
       if (isEditing && id) {
-        const { error } = await supabase
-          .from('eventos')
+        // Type assertion para evitar errores de tipos de Supabase generados
+        const { error } = await (supabase
+          .from('eventos') as any)
           .update(dataToSave)
           .eq('id', id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error de Supabase:', error);
+          throw error;
+        }
         toast.success("Evento actualizado correctamente");
       } else {
-        const { error } = await supabase
-          .from('eventos')
+        // Type assertion para evitar errores de tipos de Supabase generados
+        const { error } = await (supabase
+          .from('eventos') as any)
           .insert(dataToSave)
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error de Supabase:', error);
+          throw error;
+        }
         toast.success("Evento creado correctamente");
       }
       
+      // Pequeño delay para que el usuario vea el mensaje de éxito
+      await new Promise(resolve => setTimeout(resolve, 500));
       navigate("/admin/eventos");
     } catch (error: any) {
       console.error('Error saving evento:', error);
-      toast.error(error.message || 'Error al guardar el evento');
-    } finally {
+      const errorMessage = error?.message || error?.error_description || 'Error al guardar el evento';
+      console.error('Detalles del error:', {
+        code: error?.code,
+        message: errorMessage,
+        details: error?.details,
+        hint: error?.hint
+      });
+      toast.error(errorMessage);
       setIsSaving(false);
     }
   };
